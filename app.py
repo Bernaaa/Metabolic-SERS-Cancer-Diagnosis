@@ -10,43 +10,38 @@ st.set_page_config(page_title="AI-SERS Cancer Diagnosis", page_icon="🧬", layo
 # --- MODEL VE VERİ YÜKLEME (CACHE) ---
 @st.cache_resource
 def get_model_and_data():
-    # Dosya adını belirtiyoruz
     target_file = "metabolic_scores_final.csv"
     file_path = None
 
-    # 1. Dosyayı Dinamik Olarak Ara (Current Directory ve Alt Klasörler)
-    # Bu döngü, dosya nerede saklanıyorsa onu bulur.
+    # 1. Dosyayı Bul
     for root, dirs, files in os.walk("."):
         if target_file in files:
             file_path = os.path.join(root, target_file)
             break
             
-    # 2. Dosya Bulunamadıysa Hata Ver
     if file_path is None:
-        st.error(f"❌ KRİTİK HATA: '{target_file}' dosyası sunucuda bulunamadı!")
-        st.info("Lütfen GitHub reponuzda bu dosyanın yüklü olduğundan emin olun.")
-        st.write("Mevcut Klasördeki Dosyalar:", os.listdir(".")) # Debug için dosya listesi
-        return None, None
+        return None, f"HATA: '{target_file}' dosyası bulunamadı."
 
     try:
-        # 3. Dosyayı Oku
+        # 2. Dosyayı Oku
         df = pd.read_csv(file_path)
         
-        # Gereksiz sütun temizliği
+        # --- DÜZELTME BURADA ---
+        # Sütun varsa sil, yoksa devam et (KeyError Önleyici)
         if 'Sample' in df.columns:
             df = df.drop(columns=['Sample'])
             
         X = df.drop(columns=['Cancer'])
         y = df['Cancer']
         
-        # 4. Modeli Eğit (Anlık Eğitim)
+        # 3. Modeli Eğit
         model = RandomForestClassifier(n_estimators=200, random_state=42)
         model.fit(X, y)
         
-        return model, file_path # Başarılı dönüş
+        return model, None
         
     except Exception as e:
-        return None, f"Veri okunurken hata oluştu: {e}"
+        return None, f"Hata: {e}"
 
 # Modeli Yükle
 model_result, error_message = get_model_and_data()
@@ -54,13 +49,10 @@ model_result, error_message = get_model_and_data()
 # --- BAŞLIK ---
 st.title("🧬 AI-Based Metabolic Cancer Diagnosis")
 
-# --- DURUM KONTROLÜ ---
-if isinstance(model_result, tuple): # Hata döndüyse
+# --- KONTROL ---
+if error_message:
     st.error(error_message)
-elif model_result is None: # Dosya bulunamadıysa
-    st.stop()
-else:
-    # Model başarıyla yüklendi
+elif model_result:
     model = model_result
     st.success("Sistem Hazır ve Çalışıyor! ✅")
     

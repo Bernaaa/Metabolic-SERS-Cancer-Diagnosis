@@ -1,117 +1,89 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
-import os
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+import os
 
 # --- SAYFA AYARLARI ---
 st.set_page_config(page_title="AI-SERS Cancer Diagnosis", page_icon="🧬", layout="centered")
 
-# --- BAŞLIK ---
-st.title("🧬 AI-Based Metabolic Cancer Diagnosis")
-st.markdown("""
-Bu uygulama, **Transkriptomik Rehberli SERS** verilerini kullanarak abdominal kanserlerin (PAAD, OV, CHOL) ayırıcı tanısını yapar.
-Model, yüklenen veri seti üzerinde anlık olarak eğitilir ve **Olasılık Skorları (Probability Scores)** üretir.
-""")
-
-# --- MODELİ VE VERİYİ YÜKLEME (CACHE) ---
+# --- MODEL VE VERİ YÜKLEME (CACHE) ---
 @st.cache_resource
-def train_model():
-    # Dosya adları
-    file_path = "metabolic_scores_final.csv"
+def get_model_and_data():
+    # Dosya adını kontrol et (GitHub'daki adıyla birebir aynı olmalı)
+    file_name = "metabolic_scores_final.csv"
     
-    # Dosya var mı kontrol et
-    if not os.path.exists(file_path):
-        # Dosya yoksa mevcut konumu yazdır (Hata Ayıklama İçin)
-        current_dir = os.getcwd()
-        st.error(f"HATA: '{file_path}' dosyası bulunamadı!")
-        st.error(f"Uygulamanın çalıştığı klasör: {current_dir}")
-        st.error("Lütfen GitHub reponuzda dosyanın 'app.py' ile AYNI klasörde olduğundan emin olun.")
-        return None, None
-
+    # 1. Dosya Var mı Kontrolü
+    if not os.path.exists(file_name):
+        return None, f"HATA: '{file_name}' dosyası bulunamadı. Lütfen GitHub reponuza bu dosyayı yükleyin."
+    
     try:
-        # Dosyayı oku
-        df = pd.read_csv(file_path)
+        # 2. Veriyi Oku
+        df = pd.read_csv(file_name)
         
-        # Gereksiz sütun varsa temizle
+        # Gereksiz sütun temizliği
         if 'Sample' in df.columns:
             df = df.drop(columns=['Sample'])
             
         X = df.drop(columns=['Cancer'])
         y = df['Cancer']
         
-        # Modeli Eğit
+        # 3. Modeli Eğit (Anlık Eğitim - En Garantisi)
         model = RandomForestClassifier(n_estimators=200, random_state=42)
         model.fit(X, y)
         
-        return model, X.columns.tolist()
+        return model, None # Hata yok
         
     except Exception as e:
-        st.error(f"Bir hata oluştu: {e}")
-        return None, None
+        return None, f"Veri okunurken hata oluştu: {e}"
 
-# Modeli ve Sütun İsimlerini Al
-model, feature_names = train_model()
+# Modeli Yükle
+model, error_message = get_model_and_data()
 
-st.divider()
+# --- BAŞLIK ---
+st.title("🧬 AI-Based Metabolic Cancer Diagnosis")
 
-if model:
-    # --- 2. KULLANICI GİRİŞ PANELİ ---
-    st.sidebar.header("Patient Metabolic Profile")
-    st.sidebar.info("SERS sinyal yoğunluklarını giriniz.")
-
-    # Slider'lar
-    gly = st.sidebar.slider('Glycolysis Score (Lactate)', 0.0, 15.0, 8.5)
-    lip = st.sidebar.slider('Lipid Synthesis Score', 0.0, 15.0, 7.2)
-    nuc = st.sidebar.slider('Nucleotide Metab. Score', 0.0, 15.0, 6.1)
-    tca = st.sidebar.slider('TCA Cycle Score', 0.0, 15.0, 9.4)
+# --- HATA VARSA GÖSTER, YOKSA DEVAM ET ---
+if error_message:
+    st.error(error_message)
+    st.info("İpucu: GitHub reponuzda 'metabolic_scores_final.csv' dosyasının olduğundan emin olun.")
+else:
+    st.success("Model başarıyla eğitildi ve hazır! ✅")
     
-    # Giriş verisini DataFrame'e çevir
-    input_data = {'Glikoliz': gly, 'Lipid_Sentezi': lip, 'Nukleotit': nuc, 'TCA_Dongusu': tca}
-    input_df = pd.DataFrame([input_data])
-
-    # --- 3. ANA EKRAN VE TAHMİN ---
-    st.subheader("📊 Analiz Edilen Profil")
-    st.dataframe(input_df)
-
-    if st.button("🔍 Analyze & Diagnose"):
-        # Tahmin (Sınıf)
-        prediction = model.predict(input_df)[0]
+    # --- GİRİŞ PANELİ ---
+    st.sidebar.header("Patient Metabolic Profile")
+    
+    def user_input_features():
+        gly = st.sidebar.slider('Glycolysis Score', 0.0, 15.0, 8.5)
+        lip = st.sidebar.slider('Lipid Synthesis Score', 0.0, 15.0, 7.2)
+        nuc = st.sidebar.slider('Nucleotide Metab. Score', 0.0, 15.0, 6.1)
+        tca = st.sidebar.slider('TCA Cycle Score', 0.0, 15.0, 9.4)
         
-        # Olasılık (Probability)
+        data = {'Glikoliz': gly, 'Lipid_Sentezi': lip, 'Nukleotit': nuc, 'TCA_Dongusu': tca}
+        return pd.DataFrame(data, index=[0])
+
+    input_df = user_input_features()
+
+    # --- TAHMİN ---
+    if st.button("🔍 Analyze & Diagnose"):
+        # Tahmin ve Olasılık
+        prediction = model.predict(input_df)[0]
         prediction_proba = model.predict_proba(input_df)
         
         st.divider()
+        st.subheader(f"Diagnosis: {prediction}")
         
-        # --- SONUÇ GÖSTERİMİ ---
-        st.subheader("🩺 Tanı Sonucu")
-        
-        if prediction == "PAAD":
-            st.error(f"Tahmin: **Pankreas Adenokarsinomu (PAAD)**")
-            st.warning("⚠️ Yüksek Glikoliz ve Lipid Sentezi tespit edildi. Agresif seyir riski.")
-        elif prediction == "OV":
-            st.error(f"Tahmin: **Over Kanseri (OV)**")
-            st.info("ℹ️ Yüksek Nükleotit sentezi tespit edildi. Hızlı proliferasyon işareti.")
-        else:
-            st.success(f"Tahmin: **Kolanjiyokarsinom (CHOL)**")
-            st.info("ℹ️ Metabolik sinyaller düşük seviyede.")
-
-        # --- OLASILIK GRAFİĞİ (Bar Chart) ---
-        st.subheader("📈 Güven Skorları (Probability)")
-        
-        # Olasılıkları DataFrame'e çevirip çizdiriyoruz
+        # Olasılık Grafiği
         prob_df = pd.DataFrame(prediction_proba, columns=model.classes_)
-        
-        # En yüksek olasılığı yüzde olarak göster
-        max_prob = np.max(prediction_proba) * 100
-        st.write(f"Model bu karardan **%{max_prob:.2f}** oranında emin.")
-        
         st.bar_chart(prob_df.T)
-
-else:
-    st.warning("Uygulama çalıştırılamadı. Lütfen CSV dosyasını kontrol edin.")
+        
+        # Yorumlar
+        if prediction == "PAAD":
+            st.warning("⚠️ High Risk: Pancreatic Adenocarcinoma detected.")
+        elif prediction == "OV":
+            st.info("ℹ️ Detection: Ovarian Cancer signature.")
+        else:
+            st.success("✅ Detection: Cholangiocarcinoma signature.")
 
 # --- ALT BİLGİ ---
 st.divider()

@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import joblib
+import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
@@ -14,13 +16,24 @@ Bu uygulama, **Transkriptomik Rehberli SERS** verilerini kullanarak abdominal ka
 Model, yüklenen veri seti üzerinde anlık olarak eğitilir ve **Olasılık Skorları (Probability Scores)** üretir.
 """)
 
-# --- 1. VERİYİ YÜKLEME VE MODEL EĞİTİMİ (CACHE) ---
-# @st.cache_resource sayesinde model sadece bir kez eğitilir, her tıklamada tekrar etmez.
+# --- MODELİ VE VERİYİ YÜKLEME (CACHE) ---
 @st.cache_resource
 def train_model():
+    # Dosya adları
+    file_path = "metabolic_scores_final.csv"
+    
+    # Dosya var mı kontrol et
+    if not os.path.exists(file_path):
+        # Dosya yoksa mevcut konumu yazdır (Hata Ayıklama İçin)
+        current_dir = os.getcwd()
+        st.error(f"HATA: '{file_path}' dosyası bulunamadı!")
+        st.error(f"Uygulamanın çalıştığı klasör: {current_dir}")
+        st.error("Lütfen GitHub reponuzda dosyanın 'app.py' ile AYNI klasörde olduğundan emin olun.")
+        return None, None
+
     try:
-        # GitHub'daki csv dosyasını okur
-        df = pd.read_csv("metabolic_scores_final.csv")
+        # Dosyayı oku
+        df = pd.read_csv(file_path)
         
         # Gereksiz sütun varsa temizle
         if 'Sample' in df.columns:
@@ -29,14 +42,14 @@ def train_model():
         X = df.drop(columns=['Cancer'])
         y = df['Cancer']
         
-        # Modeli Eğit (Olasılık hesaplama özelliği varsayılan olarak açıktır)
+        # Modeli Eğit
         model = RandomForestClassifier(n_estimators=200, random_state=42)
         model.fit(X, y)
         
         return model, X.columns.tolist()
         
-    except FileNotFoundError:
-        st.error("HATA: 'metabolic_scores_final.csv' dosyası bulunamadı! Lütfen bu dosyayı GitHub reponuza yükleyin.")
+    except Exception as e:
+        st.error(f"Bir hata oluştu: {e}")
         return None, None
 
 # Modeli ve Sütun İsimlerini Al
@@ -56,7 +69,6 @@ if model:
     tca = st.sidebar.slider('TCA Cycle Score', 0.0, 15.0, 9.4)
     
     # Giriş verisini DataFrame'e çevir
-    # Sütun sırasının eğitim verisiyle aynı olduğundan emin oluyoruz
     input_data = {'Glikoliz': gly, 'Lipid_Sentezi': lip, 'Nukleotit': nuc, 'TCA_Dongusu': tca}
     input_df = pd.DataFrame([input_data])
 
@@ -68,7 +80,7 @@ if model:
         # Tahmin (Sınıf)
         prediction = model.predict(input_df)[0]
         
-        # Olasılık (Probability) - İsteğiniz üzerine eklendi
+        # Olasılık (Probability)
         prediction_proba = model.predict_proba(input_df)
         
         st.divider()
@@ -99,7 +111,7 @@ if model:
         st.bar_chart(prob_df.T)
 
 else:
-    st.warning("Model eğitilemediği için arayüz yüklenemedi. Lütfen CSV dosyasını kontrol edin.")
+    st.warning("Uygulama çalıştırılamadı. Lütfen CSV dosyasını kontrol edin.")
 
 # --- ALT BİLGİ ---
 st.divider()

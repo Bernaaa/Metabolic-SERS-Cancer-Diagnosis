@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import os
 
@@ -10,17 +11,22 @@ st.set_page_config(page_title="AI-SERS Cancer Diagnosis", page_icon="🧬")
 st.title("🧬 AI-Based Metabolic Cancer Diagnosis")
 
 # --- 1. VERİYİ OKU VE MODELİ EĞİT ---
-# Bu fonksiyon modeli her seferinde sıfırdan eğitir, böylece versiyon hatası olmaz.
 @st.cache_resource
 def train_model_live():
     file_name = "metabolic_scores_final.csv"
     
-    # Dosya kontrolü
-    if not os.path.exists(file_name):
-        return None, f"HATA: '{file_name}' dosyası bulunamadı. Lütfen GitHub'da dosya adının birebir aynı olduğundan emin olun."
+    # Dosya kontrolü (Klasörleri tara)
+    file_path = None
+    for root, dirs, files in os.walk("."):
+        if file_name in files:
+            file_path = os.path.join(root, file_name)
+            break
+            
+    if file_path is None:
+        return None, f"HATA: '{file_name}' dosyası bulunamadı. Lütfen GitHub'da dosyanın yüklü olduğundan emin olun."
     
     try:
-        df = pd.read_csv(file_name)
+        df = pd.read_csv(file_path)
         
         # Gereksiz sütun temizliği
         if 'Sample' in df.columns:
@@ -37,13 +43,14 @@ def train_model_live():
     except Exception as e:
         return None, str(e)
 
-# Modeli al
+# Modeli yükle
 model, error = train_model_live()
 
-# --- 2. HATA VARSA GÖSTER, YOKSA DEVAM ET ---
+# --- 2. HATA VARSA GÖSTER, YOKSA ARAYÜZÜ AÇ ---
 if error:
     st.error(error)
-    st.write("Mevcut Klasördeki Dosyalar:", os.listdir()) # Hata ayıklama için
+    st.info("Mevcut Klasördeki Dosyalar:")
+    st.write(os.listdir()) # Debug için dosya listesi
     st.stop()
 
 # --- 3. KULLANICI GİRİŞİ ---
@@ -64,14 +71,20 @@ input_df = user_input_features()
 st.subheader("Analiz Sonucu")
 
 if st.button("🔍 Analyze"):
-    prediction = model.predict(input_df)[0]
-    prediction_proba = model.predict_proba(input_df)
-    
-    if prediction == "PAAD":
-        st.error(f"Tahmin: **{prediction}** (Pankreas Kanseri)")
-    elif prediction == "OV":
-        st.warning(f"Tahmin: **{prediction}** (Over Kanseri)")
-    else:
-        st.success(f"Tahmin: **{prediction}** (Safra Yolu Kanseri)")
+    if model is not None:
+        # Tahmin yap
+        prediction = model.predict(input_df)[0]
+        prediction_proba = model.predict_proba(input_df)
         
-    st.bar_chart(pd.DataFrame(prediction_proba, columns=model.classes_).T)
+        # Sonucu göster
+        if prediction == "PAAD":
+            st.error(f"Tahmin: **{prediction}** (Pankreas Kanseri)")
+        elif prediction == "OV":
+            st.warning(f"Tahmin: **{prediction}** (Over Kanseri)")
+        else:
+            st.success(f"Tahmin: **{prediction}** (Safra Yolu Kanseri)")
+            
+        # Olasılık Grafiği
+        st.bar_chart(pd.DataFrame(prediction_proba, columns=model.classes_).T)
+    else:
+        st.error("Model yüklenemediği için tahmin yapılamıyor.")

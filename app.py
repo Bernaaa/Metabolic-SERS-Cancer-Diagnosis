@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import os
 
@@ -11,6 +10,7 @@ st.set_page_config(page_title="AI-SERS Cancer Diagnosis", page_icon="🧬")
 st.title("🧬 AI-Based Metabolic Cancer Diagnosis")
 
 # --- 1. VERİYİ OKU VE MODELİ EĞİT ---
+# Bu fonksiyon modeli her seferinde sıfırdan eğitir, böylece versiyon hatası olmaz.
 @st.cache_resource
 def train_model_live():
     file_name = "metabolic_scores_final.csv"
@@ -46,7 +46,7 @@ def train_model_live():
 # Modeli yükle
 model, error = train_model_live()
 
-# --- 2. HATA VARSA GÖSTER, YOKSA ARAYÜZÜ AÇ ---
+# --- 2. HATA VARSA GÖSTER, YOKSA DEVAM ET ---
 if error:
     st.error(error)
     st.info("Mevcut Klasördeki Dosyalar:")
@@ -71,7 +71,7 @@ input_df = user_input_features()
 st.subheader("Analiz Sonucu")
 
 if st.button("🔍 Analyze"):
-    if model is not None:
+    try:
         # Tahmin yap
         prediction = model.predict(input_df)[0]
         prediction_proba = model.predict_proba(input_df)
@@ -86,5 +86,6 @@ if st.button("🔍 Analyze"):
             
         # Olasılık Grafiği
         st.bar_chart(pd.DataFrame(prediction_proba, columns=model.classes_).T)
-    else:
-        st.error("Model yüklenemediği için tahmin yapılamıyor.")
+        
+    except Exception as e:
+        st.error(f"Tahmin sırasında hata oluştu: {e}")

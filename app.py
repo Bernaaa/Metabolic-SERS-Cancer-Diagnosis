@@ -10,41 +10,48 @@ st.set_page_config(page_title="AI-SERS Cancer Diagnosis", page_icon="🧬")
 # --- BAŞLIK ---
 st.title("🧬 AI-Based Metabolic Cancer Diagnosis")
 
-# --- 1. DOSYAYI BUL VE OKU ---
-# Cache kullanmıyoruz, her seferinde taze okusun.
-file_name = "metabolic_scores_final.csv"
-file_path = None
-
-# Dosyayı ara
-if os.path.exists(file_name):
-    file_path = file_name
-else:
+# --- 1. VERİYİ OKU, MODELİ EĞİT VE SÜTUN SIRASINI AL ---
+@st.cache_resource
+def train_model_live():
+    file_name = "metabolic_scores_final.csv"
+    
+    # Dosya kontrolü (Klasörleri tara)
+    file_path = None
     for root, dirs, files in os.walk("."):
         if file_name in files:
             file_path = os.path.join(root, file_name)
             break
-
-if file_path is None:
-    st.error(f"🚨 HATA: '{file_name}' dosyası bulunamadı. Lütfen GitHub'da dosya adının doğru olduğundan emin olun.")
-    st.stop()
-
-# --- 2. MODELİ EĞİT ---
-try:
-    df = pd.read_csv(file_path)
+            
+    if file_path is None:
+        return None, None, f"HATA: '{file_name}' dosyası bulunamadı. Lütfen GitHub'da dosyanın yüklü olduğundan emin olun."
     
-    # Gereksiz sütun temizliği
-    if 'Sample' in df.columns:
-        df = df.drop(columns=['Sample'])
+    try:
+        df = pd.read_csv(file_path)
         
-    X = df.drop(columns=['Cancer'])
-    y = df['Cancer']
-    
-    # Modeli Taze Eğit
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X, y)
-    
-except Exception as e:
-    st.error(f"Veri okunurken veya model eğitilirken hata oluştu: {e}")
+        # Gereksiz sütun temizliği
+        if 'Sample' in df.columns:
+            df = df.drop(columns=['Sample'])
+            
+        X = df.drop(columns=['Cancer'])
+        y = df['Cancer']
+        
+        # Sütun isimlerini kaydet (Sıralama hatasını önlemek için)
+        feature_order = X.columns.tolist()
+        
+        # Modeli Eğit
+        clf = RandomForestClassifier(n_estimators=100, random_state=42)
+        clf.fit(X, y)
+        
+        return clf, feature_order, None
+    except Exception as e:
+        return None, None, str(e)
+
+# Modeli ve Sütun Sırasını Yükle
+model, feature_order, error = train_model_live()
+
+# --- 2. HATA VARSA GÖSTER ---
+if error:
+    st.error(error)
     st.stop()
 
 # --- 3. KULLANICI GİRİŞİ ---
@@ -52,13 +59,27 @@ st.sidebar.header("Patient Metabolic Profile")
 
 def user_input_features():
     # Slider değerleri
-    gly = st.sidebar.slider('Glycolysis Score', 0.0, 15.0, 8.5)
-    lip = st.sidebar.slider('Lipid Synthesis Score', 0.0, 15.0, 7.2)
-    nuc = st.sidebar.slider('Nucleotide Metab. Score', 0.0, 15.0, 6.1)
-    tca = st.sidebar.slider('TCA Cycle Score', 0.0, 15.0, 9.4)
+    gly = st.sidebar.slider('Glikoliz', 0.0, 15.0, 8.5)
+    lip = st.sidebar.slider('Lipid_Sentezi', 0.0, 15.0, 7.2)
+    nuc = st.sidebar.slider('Nukleotit', 0.0, 15.0, 6.1)
+    tca = st.sidebar.slider('TCA_Dongusu', 0.0, 15.0, 9.4)
     
-    data = {'Glikoliz': gly, 'Lipid_Sentezi': lip, 'Nukleotit': nuc, 'TCA_Dongusu': tca}
-    return pd.DataFrame(data, index=[0])
+    # Veriyi sözlük olarak oluştur
+    data = {
+        'Glikoliz': gly, 
+        'Lipid_Sentezi': lip, 
+        'Nukleotit': nuc, 
+        'TCA_Dongusu': tca
+    }
+    
+    # DataFrame oluştur
+    features_df = pd.DataFrame(data, index=[0])
+    
+    # KRİTİK DÜZELTME: Sütunları, eğitimdeki sıraya göre yeniden diz
+    # Bu satır "Feature names must be in the same order" hatasını çözer.
+    features_df = features_df[feature_order]
+    
+    return features_df
 
 input_df = user_input_features()
 

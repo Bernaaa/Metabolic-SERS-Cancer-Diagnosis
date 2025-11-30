@@ -10,4 +10,4 @@ Bu klasör, akademik makale ve sunum için R ve Python kullanılarak üretilmiş
 * **`Figure4_ROC_Curves.png`:** Tanısal modelin performans eğrileri (AUC değerleri).
 * **`Figure5_Survival.png`:** Nükleotit skoruna dayalı Kaplan-Meier sağkalım analizi.
 * **`Figure6_Oncogenes.png`:** Metabolik değişimleri yöneten ana sürücü genlerin (KRAS, TP53 vb.) ifadesi.
-* **`Figure7_PPI_Network.png`:** Kritik genlerin fonksiyonel etkileşim ağı (Protein-Protein Interaction).
+

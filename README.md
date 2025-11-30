@@ -79,10 +79,10 @@ Modelimiz test setinde olağanüstü performans metriklerine ulaşmıştır:
 
 ### Görseller
 #### ROC Eğrileri (Tanısal Başarı)
-![ROC Curve](images/Figure4_ROC_Curves.tiff)
+![ROC Curve](images/Figure4_ROC_Curves.png)
 
 #### In Silico SERS Spektrumu (Sensör Tasarımı)
-![SERS Spectrum](images/Figure3_SERS_Spectrum.tiff)
+![SERS Spectrum](images/Figure3_SERS_Spectrum.png)
 
 
 
